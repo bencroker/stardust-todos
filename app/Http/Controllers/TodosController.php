@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Generator;
 use GuzzleHttp\Psr7\Utils;
+use Illuminate\Http\Client\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
@@ -13,11 +14,14 @@ class TodosController extends Controller
 {
     public function index(): View
     {
-        foreach ($this->parseReactorResults() as $result) {
-            return view('todos', ['todoItems' => $result]);
-        }
+        $result = $this->getReactorResponse([
+            'query' => [
+                'mode' => 'object',
+                'max' => 1,
+            ],
+        ])->json();
 
-        return view('todos', ['todoItems' => []]);
+        return view('todos', ['todoItems' => $result]);
     }
 
     public function updates(): StreamedResponse
@@ -36,7 +40,7 @@ class TodosController extends Controller
         if ($title) {
             $this->transact(['#_entity' => [
                 'title' => $title,
-                'status' => 'pending'
+                'status' => 'pending',
             ]]);
         }
 
@@ -55,18 +59,16 @@ class TodosController extends Controller
         return sse()->getEventStream();
     }
 
+
     private function parseReactorResults(): Generator
     {
-        $request = Http::withHeaders([
-            'Accept' => 'application/x-ndjson',
-            'Cache-Control' => 'no-store',
-        ])
-        ->withOptions([
+        $stream = $this->getReactorResponse([
             'stream' => true,
-        ])
-        ->get(config('stardust.base_url') . '/reactors/' . config('stardust.todo_items_reactor_id') . '/results?mode=object');
+            'query' => [
+                'mode' => 'object',
+            ],
+        ])->getBody();
 
-        $stream = $request->getBody();
         while (!$stream->eof()) {
             $line = trim(Utils::readLine($stream));
             if ($line !== '') {
@@ -74,6 +76,13 @@ class TodosController extends Controller
             }
         }
         $stream->close();
+    }
+
+    private function getReactorResponse(array $options = []): Response
+    {
+        return Http::withOptions($options)
+            ->withHeaders(['Accept' => 'application/x-ndjson'])
+            ->get(config('stardust.base_url') . '/reactors/' . config('stardust.todo_items_reactor_id') . '/results');
     }
 
     private function transact(array $data): void
