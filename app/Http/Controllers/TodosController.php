@@ -15,10 +15,7 @@ class TodosController extends Controller
     public function index(): View
     {
         $result = $this->getReactorResponse([
-            'query' => [
-                'mode' => 'object',
-                'max' => 1,
-            ],
+            'query' => ['max' => 1],
         ])->json();
 
         return view('todos', ['todoItems' => $result]);
@@ -59,14 +56,21 @@ class TodosController extends Controller
         return sse()->getEventStream();
     }
 
+    private function getReactorResponse(array $options = []): Response
+    {
+        $options['query']['mode'] = 'object';
+
+        return Http::withOptions($options)
+            ->withHeaders([
+                'Accept' => 'application/x-ndjson',
+            ])
+            ->get(config('stardust.base_url') . '/reactors/' . config('stardust.reactor_id') . '/results');
+    }
 
     private function parseReactorResults(): Generator
     {
         $stream = $this->getReactorResponse([
             'stream' => true,
-            'query' => [
-                'mode' => 'object',
-            ],
         ])->getBody();
 
         while (!$stream->eof()) {
@@ -76,13 +80,6 @@ class TodosController extends Controller
             }
         }
         $stream->close();
-    }
-
-    private function getReactorResponse(array $options = []): Response
-    {
-        return Http::withOptions($options)
-            ->withHeaders(['Accept' => 'application/x-ndjson'])
-            ->get(config('stardust.base_url') . '/reactors/' . config('stardust.todo_items_reactor_id') . '/results');
     }
 
     private function transact(array $data): void

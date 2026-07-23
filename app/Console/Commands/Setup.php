@@ -24,6 +24,6 @@ class Setup extends Command
               [?id status ?status]
             ]
         ", 'application/ron')
-            ->post(config('stardust.base_url') . '/reactors');
+            ->post(config('stardust.base_url') . '/reactors/' . config('stardust.reactor_id'));
     }
 }
