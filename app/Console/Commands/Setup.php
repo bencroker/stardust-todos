@@ -16,7 +16,7 @@ class Setup extends Command
      */
     public function handle(): void
     {
-        Http::withBody("
+        $response = Http::withBody("
             title todoItemsReactor
             find [?id ?title ?status]
             where [
@@ -25,5 +25,13 @@ class Setup extends Command
             ]
         ", 'application/ron')
             ->post(config('stardust.base_url') . '/reactors/' . config('stardust.reactor_id'));
+
+        if ($response->successful()) {
+            $this->info('Reactor setup successful!');
+        } else {
+            $this->error('Reactor setup failed! Status: ' . $response->status());
+        }
+
+        $this->line($response->body());
     }
 }
