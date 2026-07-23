@@ -7,7 +7,7 @@ return [
     /**
      * Whether to register the Datastar script on the front-end.
      */
-    'registerScript' => false,
+    'registerScript' => true,
 
     /**
      * Whether the session should be closed when the event stream begins.
