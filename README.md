@@ -2,12 +2,14 @@
 
 Minimal Laravel-Datastar-Stardust todo app.
 
-Install composer dependencies and publish the public assets:
+Install composer dependencies, publish the public assets, and run the setup command to create a reactor.
 
 ```bash
 composer install
 
 php artisan vendor:publish --tag=public
+
+php artisan app:setup
 ```
 
 The app expects Stardust to be running at `http://localhost:1981`. You can change this in the `.env` file.
@@ -16,7 +18,7 @@ The app expects Stardust to be running at `http://localhost:1981`. You can chang
 STARDUST_BASE_URL=http://localhost:1981
 ```
 
-Run Stardust at port `1981` with the following command:
+Run Stardust at port `1981` with the following command.
 
 ```
 ./stardust --port 1981 --db data/todo.stardust
