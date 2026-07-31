@@ -2,10 +2,14 @@
 
 return [
     'base_url' => env('STARDUST_BASE_URL', 'http://localhost:1980'),
-    'query_id' => 90,
-    'mutation_id' => 102,
-    'reactor_id' => 103,
-    'count_pending_id' => 201,
-    'count_done_id' => 203,
+    'aggregates_id' => 1,
+    'aggregates_query_id' => 2,
+    'todo_items_query_id' => 3,
+    'aggregates_pending_mutation_id' => 4,
+    'aggregates_total_mutation_id' => 5,
+    'aggregates_pending_reactor_id' => 6,
+    'aggregates_total_reactor_id' => 7,
+    'aggregates_pending_mutation_revision' => 1,
+    'aggregates_total_mutation_revision' => 1,
 ];
 

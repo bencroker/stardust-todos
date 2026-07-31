@@ -6,9 +6,13 @@ use Generator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use stdClass;
 
 readonly class StardustHelper
 {
+    // Record Separator for JSON-seq format
+    private const string RS = "\x1E";
+
     private string $baseUrl;
 
     public function __construct(?string $baseUrl = null)
@@ -39,45 +43,71 @@ readonly class StardustHelper
     /**
      * Run a query and return the results as an object.
      */
-    public function runQuery(int $id): array
+    public function runQuery(int $id, array $options = []): StdClass|array
     {
+        $options = array_merge(
+            ['query' => ['mode' => 'object']],
+            $options
+        );
+        $associative = ($options['query']['mode'] ?? null) !== 'object';
+
         $result = $this->getRequest()
-            ->withOptions(['query' => ['mode' => 'object']])
+            ->withHeader('Accept', 'application/json')
+            ->withOptions($options)
             ->post("$this->baseUrl/queries/$id/run");
 
-        return $result['results'] ?? [];
+        return json_decode($result->getBody(), $associative);
     }
 
     /**
      * Stream query results as JSON-seq format (RFC 7464).
      */
-    public function streamQuery(int $id): Generator
+    public function streamQuery(int $id, array $options = []): Generator
     {
+        $options = array_merge(
+            ['query' => ['mode' => 'object'],
+            'stream' => true,
+        ], $options);
+        $associative = ($options['query']['mode'] ?? null) !== 'object';
+
         $stream = $this->getRequest()
             ->withHeader('Accept', 'application/json-seq')
-            ->withOptions([
-                'query' => ['mode' => 'object'],
-                'stream' => true,
-            ])
+            ->withOptions($options)
             ->post("$this->baseUrl/queries/$id/run")
             ->getBody();
 
         $buffer = '';
 
         while (!$stream->eof()) {
-            $buffer .= $stream->read(8192);
+            $buffer .= $stream->read(128);
 
-            foreach ($this->decodeJsonSeqBuffer($buffer, false) as $result) {
-                yield $result;
+            // Strip leading RS if present (RFC 7464 format)
+            if (str_starts_with($buffer, self::RS)) {
+                $buffer = substr($buffer, 1);
+            }
+
+            // Process all complete records in the buffer
+            // Records end with newlines
+            while (str_contains($buffer, "\n")) {
+                $pos = strpos($buffer, "\n");
+                $chunk = trim(substr($buffer, 0, $pos));
+                $buffer = substr($buffer, $pos + 1);
+
+                if (!empty($chunk)) {
+                    yield json_decode($chunk, $associative);
+                }
+
+                // Strip leading RS if present after processing a record
+                if (str_starts_with($buffer, self::RS)) {
+                    $buffer = substr($buffer, 1);
+                }
             }
         }
 
-        // Process any remaining data in buffer before closing
-        foreach ($this->decodeJsonSeqBuffer($buffer, true) as $result) {
-            yield $result;
+        // Handle any remaining data in the buffer
+        if (!empty($buffer)) {
+            yield json_decode($buffer, $associative);
         }
-
-        $stream->close();
     }
 
     /**
@@ -98,15 +128,45 @@ readonly class StardustHelper
     {
         $url = $id ? "$this->baseUrl/reactors/$id" : "$this->baseUrl/reactors";
 
-        return $this->getRequest([
-            'mutationId' => $mutationId,
-            'revision' => $revision,
-            'title' => $title,
-        ])->post($url);
+        return $this->getRequest("
+            title '$title'
+            mutation {# $mutationId}
+            revision $revision
+        ")->post($url);
     }
 
     /**
-     * Returns a PendingRequest with the appropriate content type based on the data type (string or array).
+     * Starts a reactor.
+     */
+    public function startReactor(int $reactorId): Response
+    {
+        $url = "$this->baseUrl/reactors/$reactorId/start";
+
+        return $this->getRequest()->post($url);
+    }
+
+    /**
+     * Stops a reactor.
+     */
+    public function stopReactor(int $reactorId): Response
+    {
+        $url = "$this->baseUrl/reactors/$reactorId/stop";
+
+        return $this->getRequest()->post($url);
+    }
+
+    /**
+     * Restarts a reactor.
+     */
+    public function restartReactor(int $reactorId): Response
+    {
+        $url = "$this->baseUrl/reactors/$reactorId/restart";
+
+        return $this->getRequest()->post($url);
+    }
+
+    /**
+     * Returns a PendingRequest with the appropriate content type based on the data type.
      */
     private function getRequest(string|array|null $data = null): PendingRequest
     {
@@ -116,54 +176,11 @@ readonly class StardustHelper
             $contentType = 'application/json';
         }
 
-        $request = Http::withHeader('Accept', 'application/json');
+        $request = Http::withHeader('Accept', 'application/json-seq');
         if ($data !== null) {
             $request = $request->withBody($data, $contentType);
         }
 
         return $request;
     }
-
-    /**
-     * Decode JSON-seq formatted buffer and yield results.
-     * RFC 7464 compliant JSON Text Sequence parser.
-     * Based on https://github.com/networkteam/json-seq/blob/master/src/StringDecoder.php
-     */
-    private function decodeJsonSeqBuffer(string &$buffer, bool $isFinal): Generator
-    {
-        $RS = "\x1E";
-        $lastPos = 0;
-        $length = strlen($buffer);
-
-        while ($lastPos < $length && ($nextPos = strpos($buffer, $RS, $lastPos)) !== false) {
-            $nextNextPos = strpos($buffer, $RS, $nextPos + 1);
-
-            if ($nextNextPos === false) {
-                if (!$isFinal) {
-                    // Incomplete record, keep in buffer
-                    break;
-                }
-                $nextNextPos = $length;
-            }
-
-            // RFC7464 2.1: Multiple consecutive RS octets are ignored
-            if ($nextNextPos === $nextPos + 1) {
-                $lastPos = $nextNextPos;
-                continue;
-            }
-
-            $jsonText = substr($buffer, $nextPos + 1, $nextNextPos - ($nextPos + 1));
-            $data = json_decode($jsonText, true);
-
-            if ($data !== null && isset($data['results'])) {
-                yield $data['results'];
-            }
-
-            $lastPos = $nextNextPos;
-        }
-
-        $buffer = substr($buffer, $lastPos);
-    }
 }
-
-

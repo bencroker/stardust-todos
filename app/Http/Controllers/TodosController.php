@@ -18,16 +18,34 @@ class TodosController extends Controller
 
     public function index(): View
     {
-        $result = $this->stardustHelper->runQuery(config('stardust.query_id'));
+        $aggregates = $this->stardustHelper->runQuery(config('stardust.aggregates_query_id'))
+            ->results[0];
 
-        return view('todos', ['todoItems' => $result]);
+        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))
+            ->results;
+
+        return view('todos', [
+            'aggregates' => $aggregates,
+            'todoItems' => $todoItems,
+        ]);
     }
 
-    public function updates(): StreamedResponse
+    public function aggregates(): StreamedResponse
     {
         return sse()->getEventStream(function () {
-            foreach ($this->stardustHelper->streamQuery(config('stardust.query_id')) as $result) {
-                sse()->patchElements(view('components.todo-items', ['todoItems' => $result])->render());
+            foreach ($this->stardustHelper->streamQuery(config('stardust.aggregates_query_id')) as $result) {
+                $aggregates = $result->results[0];
+                sse()->patchElements(view('components.aggregates', ['aggregates' => $aggregates])->render());
+            }
+        });
+    }
+
+    public function todoItems(): StreamedResponse
+    {
+        return sse()->getEventStream(function () {
+            foreach ($this->stardustHelper->streamQuery(config('stardust.todo_items_query_id')) as $result) {
+                $todoItems = $result->results;
+                sse()->patchElements(view('components.todo-items', ['todoItems' => $todoItems])->render());
             }
         });
     }
@@ -37,10 +55,13 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['title'] ?? null;
         if ($title) {
-            $this->stardustHelper->transact(['#_entity' => [
-                'title' => $title,
-                'status' => 'pending',
-            ]]);
+            $this->stardustHelper->transact("
+                #_entity {
+                    title $title
+                    status pending
+                    counted false
+                }
+            ");
         }
 
         return sse()->getEventStream(function() {
