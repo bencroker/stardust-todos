@@ -14,28 +14,42 @@
                 <h1>todos</h1>
                 <input
                     data-bind:new-title
-                    data-on:keydown__window="evt.key === 'Enter' && {{ datastar()->action(['TodosController', 'create']) }}"
+                    data-on:keydown="evt.key === 'Enter' && {{ datastar()->action(['TodosController', 'create']) }}"
                     class="new-todo"
-                    placeholder="What needs to be done?"
+                    placeholder="What needs to be complete?"
                     autofocus
                 />
             </header>
             <main class="main">
                 <div class="toggle-all-container">
-                    <input class="toggle-all" id="toggle-all" type="checkbox" />
-                    <label for="toggle-all">Mark all as complete</label>
+                    <input
+                        @if ($activeCount->count > 0)
+                            data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'activateAll'], ['status' => 'active']) }}"
+                        @else
+                            data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'completeAll']) }}"
+                            checked
+                        @endif
+                        class="toggle-all"
+                        id="toggle-all"
+                        type="checkbox"
+                    />
+                    @if ($activeCount->count > 0)
+                        <label for="toggle-all">Mark all as complete</label>
+                    @else
+                        <label for="toggle-all">Mark all as active</label>
+                    @endif
                 </div>
                 <ul class="todo-list">
                     @foreach($todoItems as $item)
                         <li
                             data-show="$filter === 'all' || $filter === '{{ $item->status }}'"
                             data-class:editing="$editing == {{ $item->id }}"
-                            class="@if ($item->status === 'done') completed @endif"
+                            class="@if ($item->status === 'complete') completed @endif"
                         >
                             <div class="view">
                                 <input
-                                    data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'updateStatus'], ['id' => $item->id, 'status' => $item->status === 'pending' ? 'done' : 'pending']) }}"
-                                    @if ($item->status === 'done') checked @endif
+                                    data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'updateStatus'], ['id' => $item->id, 'status' => $item->status === 'active' ? 'complete' : 'active']) }}"
+                                    @if ($item->status === 'complete') checked @endif
                                     class="toggle"
                                     type="checkbox"
                                 >
@@ -50,6 +64,7 @@
                             </div>
                             <input
                                 data-on:click__outside="if ($editing == {{ $item->id }}) { $editing = 0; $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id]) }} }"
+                                data-on:keydown="if (evt.key === 'Enter') { $editing = 0; $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id]) }} }"
                                 value="{{ $item->title }}"
                                 id="edit-{{ $item->id }}"
                                 class="edit"
@@ -60,8 +75,8 @@
             </main>
             <footer class="footer" style="">
                 <span class="todo-count">
-                    <strong>{{ $pendingCount->count }}</strong>
-                    @if ($pendingCount->count == 1) item @else items @endif left
+                    <strong>{{ $activeCount->count }}</strong>
+                    @if ($activeCount->count == 1) item @else items @endif left
                 </span>
                 <ul
                     data-signals:filter="'all'"
@@ -79,8 +94,8 @@
                     </li>
                     <li>
                         <a
-                            data-on:click="$filter = 'pending'; el.blur()"
-                            data-class:selected="$filter === 'pending'"
+                            data-on:click="$filter = 'active'; el.blur()"
+                            data-class:selected="$filter === 'active'"
                             href="#"
                         >
                             Active
@@ -88,15 +103,15 @@
                     </li>
                     <li>
                         <a
-                            data-on:click="$filter = 'done'; el.blur()"
-                            data-class:selected="$filter === 'done'"
+                            data-on:click="$filter = 'complete'; el.blur()"
+                            data-class:selected="$filter === 'complete'"
                             href="#"
                         >
                             Completed
                         </a>
                     </li>
                 </ul>
-                @if ($pendingCount->count > 0)
+                @if ($activeCount->count > 0)
                     <button
                         data-on:click="{{ datastar()->action(['TodosController', 'clearCompleted']) }}"
                         class="clear-completed"
@@ -108,7 +123,6 @@
         </section>
         <footer class="info">
             <p>Double-click to edit a todo</p>
-			<p>Created by Ben Croker</p>
 			<p>Built with <a href="https://data-star.dev/" target="_blank" rel="noopener noreferrer">Datastar + Stardust</a></p>
             <p>Based on <a href="http://todomvc.com" target="_blank" rel="noopener noreferrer">TodoMVC</a></p>
         </footer>

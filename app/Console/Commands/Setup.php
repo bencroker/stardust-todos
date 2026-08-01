@@ -25,33 +25,65 @@ class Setup extends Command
      */
     public function handle(): void
     {
-            $pendingCountId = config('stardust.pending_count_id');
+            $activeCountId = config('stardust.active_count_id');
 
         $response = $this->stardustHelper->transact("
-            $pendingCountId { title pendingCount count 0 }
+            $activeCountId { title activeCount count 0 }
         ");
         if ($response->successful()) {
-            $this->info('Pending count setup successful!');
+            $this->info('Active count setup successful!');
         } else {
-            $this->error('Pending count setup failed! ' . $response->getReasonPhrase());
+            $this->error('Active count setup failed! ' . $response->getReasonPhrase());
         }
-        $this->line(trim($response->body()));
 
         $response = $this->stardustHelper->createQuery("
-            title pendingCountQuery
+            title activeCountQuery
             query {
-                find [?pending]
+                find [?active]
                 where [
-                    [$pendingCountId count ?pending]
+                    [$activeCountId count ?active]
                 ]
             }
-        ", config('stardust.pending_count_query_id'));
+        ", config('stardust.active_count_query_id'));
         if ($response->successful()) {
-            $this->info('Pending count query setup successful!');
+            $this->info('Active count query setup successful!');
         } else {
-            $this->error('Pending count query setup failed! ' . $response->getReasonPhrase());
+            $this->error('Active count query setup failed! ' . $response->getReasonPhrase());
         }
-        $this->line(trim($response->body()));
+
+        $response = $this->stardustHelper->createMutation("
+            title activeCountMutation
+            query {
+                find [[count ?id]]
+                where [
+                  [?id status active]
+                ]
+            }
+            patch {
+                $activeCountId {
+                   count ?id
+                }
+            }
+        ", config('stardust.active_count_mutation_id'));
+        if ($response->successful()) {
+            $this->info('Active count mutation setup successful!');
+        } else {
+            $this->error('Active count mutation setup failed! ' . $response->getReasonPhrase());
+        }
+
+        $response = $this->stardustHelper->createReactor(config('stardust.active_count_mutation_id'), 1, 'activeCountReactor', config('stardust.active_count_reactor_id'));
+        if ($response->successful()) {
+            $this->info('Active count reactor setup successful!');
+        } else {
+            $this->error('Active count reactor setup failed! ' . $response->getReasonPhrase());
+        }
+
+        $response = $this->stardustHelper->startReactor(config('stardust.active_count_reactor_id'));
+        if ($response->successful()) {
+            $this->info('Active count reactor started successfully!');
+        } else {
+            $this->error('Active count reactor start failed! ' . $response->getReasonPhrase());
+        }
 
         $response = $this->stardustHelper->createQuery("
             title todoItemsQuery
@@ -70,14 +102,53 @@ class Setup extends Command
         } else {
             $this->error('Todo items query setup failed! ' . $response->getReasonPhrase());
         }
-        $this->line(trim($response->body()));
+
+        $response = $this->stardustHelper->createMutation("
+            title activateAllMutation
+            query {
+                find [?id]
+                where [
+                  [?id status complete]
+                ]
+            }
+            patch {
+                ?id {
+                    status active
+                }
+            }
+        ", config('stardust.activate_all_mutation_id'));
+        if ($response->successful()) {
+            $this->info('Activate all mutation setup successful!');
+        } else {
+            $this->error('Activate all mutation setup failed! ' . $response->getReasonPhrase());
+        }
+
+        $response = $this->stardustHelper->createMutation("
+            title completeAllMutation
+            query {
+                find [?id]
+                where [
+                  [?id status active]
+                ]
+            }
+            patch {
+                ?id {
+                    status complete
+                }
+            }
+        ", config('stardust.complete_all_mutation_id'));
+        if ($response->successful()) {
+            $this->info('Complete all mutation setup successful!');
+        } else {
+            $this->error('Complete all mutation setup failed! ' . $response->getReasonPhrase());
+        }
 
         $response = $this->stardustHelper->createMutation("
             title clearCompletedMutation
             query {
                 find [?id]
                 where [
-                  [?id status done]
+                  [?id status complete]
                 ]
             }
             patch {
@@ -91,43 +162,5 @@ class Setup extends Command
         } else {
             $this->error('Clear completed mutation setup failed! ' . $response->getReasonPhrase());
         }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->createMutation("
-            title pendingCountMutation
-            query {
-                find [?id ?status]
-                where [
-                  [?id status ?status]
-                ]
-            }
-            patch {
-                $pendingCountId {
-                   count [incr [if [= ?status pending] 1 -1]]
-                }
-            }
-        ", config('stardust.pending_count_mutation_id'));
-        if ($response->successful()) {
-            $this->info('Pending count mutation setup successful!');
-        } else {
-            $this->error('Pending count mutation setup failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->createReactor(config('stardust.pending_count_mutation_id'), 1, 'pendingCountReactor', config('stardust.pending_count_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Pending count reactor setup successful!');
-        } else {
-            $this->error('Pending count reactor setup failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->startReactor(config('stardust.pending_count_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Pending count reactor started successfully!');
-        } else {
-            $this->error('Pending count reactor start failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
     }
 }

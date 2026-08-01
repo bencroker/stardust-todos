@@ -18,11 +18,11 @@ class TodosController extends Controller
 
     public function index(): View
     {
-        $pendingCount = $this->stardustHelper->getEntity(config('stardust.pending_count_id'));
+        $activeCount = $this->stardustHelper->getEntity(config('stardust.active_count_id'));
         $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
 
         return view('index', [
-            'pendingCount' => $pendingCount,
+            'activeCount' => $activeCount,
             'todoItems' => $todoItems,
         ]);
     }
@@ -40,10 +40,9 @@ class TodosController extends Controller
                 $newTodoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
                 if (json_encode($newTodoItems) !== json_encode($todoItems)) {
                     $todoItems = $newTodoItems;
-                    $pendingCount = $this->stardustHelper->getEntity(config('stardust.pending_count_id'));
+                    $activeCount = $this->stardustHelper->getEntity(config('stardust.active_count_id'));
 
-                    sse()->patchElements(view('index', ['pendingCount' => $pendingCount, 'todoItems' => $todoItems])->render());
-                    sse()->patchSignals(['newTitle' => '']);
+                    sse()->patchElements(view('index', ['activeCount' => $activeCount, 'todoItems' => $todoItems])->render());
                 }
 
                 // Sleep for 100ms
@@ -61,14 +60,14 @@ class TodosController extends Controller
             $this->stardustHelper->transact("
                 #_entity {
                     title $title
-                    status pending
+                    status active
                     createdAt {#utc $datetime}
                 }
             ");
         }
 
         return sse()->getEventStream(function() {
-            sse()->patchSignals(['title' => '']);
+            sse()->patchSignals(['newTitle' => '']);
         });
     }
 
@@ -77,7 +76,7 @@ class TodosController extends Controller
         $response = $this->stardustHelper->transact([
             $id => [
                 'status' => $status,
-            ]
+            ],
         ]);
 
         if (!$response->successful()) {
@@ -94,7 +93,7 @@ class TodosController extends Controller
             $response = $this->stardustHelper->transact([
                 $id => [
                     'title' => $title,
-                ]
+                ],
             ]);
 
             if (!$response->successful()) {
@@ -110,12 +109,26 @@ class TodosController extends Controller
         $response = $this->stardustHelper->transact([
             $id => [
                 'status' => 'deleted',
-            ]
+            ],
         ]);
 
         if (!$response->successful()) {
             dd($response->getReasonPhrase());
         }
+        return sse()->getEventStream();
+    }
+
+    public function activateAll(): StreamedResponse
+    {
+        $this->stardustHelper->runMutation(config('stardust.activate_all_mutation_id'), []);
+
+        return sse()->getEventStream();
+    }
+
+    public function completeAll(): StreamedResponse
+    {
+        $this->stardustHelper->runMutation(config('stardust.complete_all_mutation_id'), []);
+
         return sse()->getEventStream();
     }
 
