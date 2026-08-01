@@ -25,32 +25,31 @@ class Setup extends Command
      */
     public function handle(): void
     {
-        $aggregatesId = config('stardust.aggregates_id');
+            $pendingCountId = config('stardust.pending_count_id');
 
         $response = $this->stardustHelper->transact("
-            $aggregatesId { title aggregates pending 0 total 0 }
+            $pendingCountId { title pendingCount count 0 }
         ");
         if ($response->successful()) {
-            $this->info('Aggregates setup successful!');
+            $this->info('Pending count setup successful!');
         } else {
-            $this->error('Aggregates setup failed! ' . $response->getReasonPhrase());
+            $this->error('Pending count setup failed! ' . $response->getReasonPhrase());
         }
         $this->line(trim($response->body()));
 
         $response = $this->stardustHelper->createQuery("
-            title aggregatesQuery
+            title pendingCountQuery
             query {
-                find [?pending ?total]
+                find [?pending]
                 where [
-                    [$aggregatesId pending ?pending]
-                    [$aggregatesId total ?total]
+                    [$pendingCountId count ?pending]
                 ]
             }
-        ", config('stardust.aggregates_query_id'));
+        ", config('stardust.pending_count_query_id'));
         if ($response->successful()) {
-            $this->info('Aggregates query setup successful!');
+            $this->info('Pending count query setup successful!');
         } else {
-            $this->error('Aggregates query setup failed! ' . $response->getReasonPhrase());
+            $this->error('Pending count query setup failed! ' . $response->getReasonPhrase());
         }
         $this->line(trim($response->body()));
 
@@ -74,76 +73,60 @@ class Setup extends Command
         $this->line(trim($response->body()));
 
         $response = $this->stardustHelper->createMutation("
-            title aggregatesDoneMutation
+            title clearCompletedMutation
             query {
-                find [?status]
+                find [?id]
+                where [
+                  [?id status done]
+                ]
+            }
+            patch {
+                ?id {
+                    status deleted
+                }
+            }
+        ", config('stardust.clear_completed_mutation_id'));
+        if ($response->successful()) {
+            $this->info('Clear completed mutation setup successful!');
+        } else {
+            $this->error('Clear completed mutation setup failed! ' . $response->getReasonPhrase());
+        }
+        $this->line(trim($response->body()));
+
+        $response = $this->stardustHelper->createMutation("
+            title pendingCountMutation
+            query {
+                find [?id ?status]
                 where [
                   [?id status ?status]
                 ]
             }
             patch {
-                $aggregatesId {
-                    pending [incr [if [= ?status pending] 1 -1]]
+                $pendingCountId {
+                   count [incr [if [= ?status pending] 1 -1]]
                 }
             }
-        ", config('stardust.aggregates_pending_mutation_id'));
+        ", config('stardust.pending_count_mutation_id'));
         if ($response->successful()) {
-            $this->info('Aggregates pending mutation setup successful!');
+            $this->info('Pending count mutation setup successful!');
         } else {
-            $this->error('Aggregates pending mutation setup failed! ' . $response->getReasonPhrase());
+            $this->error('Pending count mutation setup failed! ' . $response->getReasonPhrase());
         }
         $this->line(trim($response->body()));
 
-        $response = $this->stardustHelper->createMutation("
-            title aggregatesTotalMutation
-            query {
-                find [?id]
-                where [
-                  [?id createdAt ?createdAt]
-                ]
-            }
-            patch {
-                $aggregatesId {
-                    total [incr 1]
-                }
-            }
-        ", config('stardust.aggregates_total_mutation_id'));
+        $response = $this->stardustHelper->createReactor(config('stardust.pending_count_mutation_id'), 1, 'pendingCountReactor', config('stardust.pending_count_reactor_id'));
         if ($response->successful()) {
-            $this->info('Aggregates total mutation setup successful!');
+            $this->info('Pending count reactor setup successful!');
         } else {
-            $this->error('Aggregates total mutation setup failed! ' . $response->getReasonPhrase());
+            $this->error('Pending count reactor setup failed! ' . $response->getReasonPhrase());
         }
         $this->line(trim($response->body()));
 
-        $response = $this->stardustHelper->createReactor(config('stardust.aggregates_pending_mutation_id'), config('stardust.aggregates_pending_mutation_revision'), 'aggregatesPendingReactor', config('stardust.aggregates_pending_reactor_id'));
+        $response = $this->stardustHelper->startReactor(config('stardust.pending_count_reactor_id'));
         if ($response->successful()) {
-            $this->info('Aggregates pending reactor setup successful!');
+            $this->info('Pending count reactor started successfully!');
         } else {
-            $this->error('Aggregates pending reactor setup failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->createReactor(config('stardust.aggregates_total_mutation_id'), config('stardust.aggregates_total_mutation_revision'), 'aggregatesTotalReactor', config('stardust.aggregates_total_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Aggregates total reactor setup successful!');
-        } else {
-            $this->error('Aggregates total reactor setup failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->startReactor(config('stardust.aggregates_pending_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Aggregates pending reactor started successfully!');
-        } else {
-            $this->error('Aggregates pending reactor start failed! ' . $response->getReasonPhrase());
-        }
-        $this->line(trim($response->body()));
-
-        $response = $this->stardustHelper->startReactor(config('stardust.aggregates_total_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Aggregates total reactor started successfully!');
-        } else {
-            $this->error('Aggregates total reactor start failed! ' . $response->getReasonPhrase());
+            $this->error('Pending count reactor start failed! ' . $response->getReasonPhrase());
         }
         $this->line(trim($response->body()));
     }

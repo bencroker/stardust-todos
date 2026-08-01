@@ -22,6 +22,26 @@ readonly class StardustHelper
     }
 
     /**
+     * Returns an entity.
+     */
+    public function getEntity(int $id, array $options = [], $associative = false): StdClass|array
+    {
+        $options = array_merge(
+            ['query' => ['mode' => 'object', 'max' => 1]],
+            $options
+        );
+
+        $result = $this->getRequest()
+            ->withHeader('Accept', 'application/json')
+            ->withOptions($options)
+            ->get("$this->baseUrl/entities/$id");
+
+        $body = trim($result->getBody()->getContents(), self::RS);
+
+        return json_decode($body, $associative);
+    }
+
+    /**
      * Send a transact command.
      */
     public function transact(string|array $data): Response
@@ -42,15 +62,14 @@ readonly class StardustHelper
     }
 
     /**
-     * Run a query and return the results as an object.
+     * Run a query and return the result.
      */
-    public function runQuery(int $id, array $options = []): StdClass|array
+    public function runQuery(int $id, array $options = [], $associative = false): StdClass|array
     {
         $options = array_merge(
             ['query' => ['mode' => 'object']],
             $options
         );
-        $associative = ($options['query']['mode'] ?? null) !== 'object';
 
         $result = $this->getRequest()
             ->withHeader('Accept', 'application/json')
@@ -63,13 +82,12 @@ readonly class StardustHelper
     /**
      * Stream query results as JSON-seq format (RFC 7464).
      */
-    public function streamQuery(int $id, array $options = []): Generator
+    public function streamQuery(int $id, array $options = [], $associative = false): Generator
     {
         $options = array_merge(
             ['query' => ['mode' => 'object'],
             'stream' => true,
         ], $options);
-        $associative = ($options['query']['mode'] ?? null) !== 'object';
 
         $stream = $this->getRequest()
             ->withHeader('Accept', 'application/json-seq')
@@ -120,6 +138,15 @@ readonly class StardustHelper
 
         return $this->getRequest($data)
             ->post($url);
+    }
+
+    /**
+     * Run a mutation and return the result.
+     */
+    public function runMutation(int $id, $associative = false): Response
+    {
+        return $this->getRequest()
+            ->post("$this->baseUrl/mutations/$id/run?revision=1");
     }
 
     /**
