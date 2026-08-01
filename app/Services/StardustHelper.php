@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Carbon\CarbonInterface;
 use Generator;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
@@ -163,6 +164,14 @@ readonly class StardustHelper
         $url = "$this->baseUrl/reactors/$reactorId/restart";
 
         return $this->getRequest()->post($url);
+    }
+
+    /**
+     * Formats a CarbonInterface date/time object to UTC in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ).
+     */
+    public function formatDateTime(CarbonInterface $dateTime): string
+    {
+        return $dateTime->utc()->format('Y-m-d\TH:i:s\Z');
     }
 
     /**

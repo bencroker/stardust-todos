@@ -18,11 +18,8 @@ class TodosController extends Controller
 
     public function index(): View
     {
-        $aggregates = $this->stardustHelper->runQuery(config('stardust.aggregates_query_id'))
-            ->results[0];
-
-        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))
-            ->results;
+        $aggregates = $this->stardustHelper->runQuery(config('stardust.aggregates_query_id'))->results[0];
+        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
 
         return view('todos', [
             'aggregates' => $aggregates,
@@ -30,22 +27,30 @@ class TodosController extends Controller
         ]);
     }
 
-    public function aggregates(): StreamedResponse
+    public function updates(): StreamedResponse
     {
         return sse()->getEventStream(function () {
-            foreach ($this->stardustHelper->streamQuery(config('stardust.aggregates_query_id')) as $result) {
-                $aggregates = $result->results[0];
-                sse()->patchElements(view('components.aggregates', ['aggregates' => $aggregates])->render());
-            }
-        });
-    }
+            $aggregates = [];
+            $todoItems = [];
 
-    public function todoItems(): StreamedResponse
-    {
-        return sse()->getEventStream(function () {
-            foreach ($this->stardustHelper->streamQuery(config('stardust.todo_items_query_id')) as $result) {
-                $todoItems = $result->results;
-                sse()->patchElements(view('components.todo-items', ['todoItems' => $todoItems])->render());
+            while (true) {
+                if (connection_aborted()) {
+                    break;
+                }
+
+                $result = $this->stardustHelper->runQuery(config('stardust.aggregates_query_id'));
+                if (json_encode($result->results[0]) !== json_encode($aggregates)) {
+                    $aggregates = $result->results[0];
+                    sse()->patchElements(view('components.aggregates', ['aggregates' => $aggregates])->render());
+                }
+
+                $result = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'));
+                if (json_encode($result->results) !== json_encode($todoItems)) {
+                    $todoItems = $result->results;
+                    sse()->patchElements(view('components.todo-items', ['todoItems' => $todoItems])->render());
+                }
+
+                usleep(1000 * 100);
             }
         });
     }
@@ -55,11 +60,12 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['title'] ?? null;
         if ($title) {
+            $datetime = $this->stardustHelper->formatDateTime(now());
             $this->stardustHelper->transact("
                 #_entity {
                     title $title
                     status pending
-                    counted false
+                    createdAt {#utc $datetime}
                 }
             ");
         }
@@ -69,9 +75,8 @@ class TodosController extends Controller
         });
     }
 
-    public function toggleStatus(int $id, string $currentStatus): StreamedResponse
+    public function updateStatus(int $id, string $status): StreamedResponse
     {
-        $status = $currentStatus === 'pending' ? 'done' : 'pending';
         $response = $this->stardustHelper->transact([
             $id => [
                 'status' => $status,

@@ -8,7 +8,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('app:setup')]
-#[Description('Sets up a todo items query.')]
+#[Description('Sets up queries, mutations, and reactors.')]
 class Setup extends Command
 {
     private readonly StardustHelper $stardustHelper;
@@ -57,11 +57,13 @@ class Setup extends Command
         $response = $this->stardustHelper->createQuery("
             title todoItemsQuery
             query {
-                find [?id ?title ?status]
+                find [?id ?title ?status ?createdAt]
                 where [
                     [?id title ?title]
                     [?id status ?status]
+                    [?id createdAt ?createdAt]
                 ]
+                orderBy [[?createdAt asc]] 
             }
         ", config('stardust.todo_items_query_id'));
         if ($response->successful()) {
@@ -72,12 +74,11 @@ class Setup extends Command
         $this->line(trim($response->body()));
 
         $response = $this->stardustHelper->createMutation("
-            title aggregatesPendingMutation
+            title aggregatesDoneMutation
             query {
                 find [?status]
                 where [
                   [?id status ?status]
-                  [?id counted true]
                 ]
             }
             patch {
@@ -98,15 +99,12 @@ class Setup extends Command
             query {
                 find [?id]
                 where [
-                  [?id counted false]
+                  [?id createdAt ?createdAt]
                 ]
             }
             patch {
                 $aggregatesId {
                     total [incr 1]
-                }
-                ?id {
-                    counted true
                 }
             }
         ", config('stardust.aggregates_total_mutation_id'));

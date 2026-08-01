@@ -3,7 +3,7 @@
         @foreach($todoItems as $item)
             <li class="px-2 py-2 rounded transition-all flex text-md">
                 <div class="flex-none w-10 leading-none">
-                    <input data-on:change="{{ datastar()->action(['TodosController', 'toggleStatus'], ['id' => $item->id, 'currentStatus' => $item->status]) }}"
+                    <input data-on:change="{{ datastar()->action(['TodosController', 'updateStatus'], ['id' => $item->id, 'status' => $item->status === 'pending' ? 'done' : 'pending']) }}"
                            type="checkbox"
                            @if ($item->status === 'done') checked @endif
                     />
