@@ -109,7 +109,8 @@
         <footer class="info">
             <p>Double-click to edit a todo</p>
 			<p>Created by Ben Croker</p>
-			<p>Built with <a href="https://data-star.dev/">Datastar + Stardust</a></p>
+			<p>Built with <a href="https://data-star.dev/" target="_blank" rel="noopener noreferrer">Datastar + Stardust</a></p>
+            <p>Based on <a href="http://todomvc.com" target="_blank" rel="noopener noreferrer">TodoMVC</a></p>
         </footer>
     </body>
 </html>
