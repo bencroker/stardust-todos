@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\StardustHelper;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Controller;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -18,12 +19,10 @@ class TodosController extends Controller
 
     public function index(): View
     {
-        $activeCount = $this->stardustHelper->getEntity(config('stardust.active_count_id'));
-        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
-
         return view('index', [
-            'activeCount' => $activeCount,
-            'todoItems' => $todoItems,
+            'activeCount' => $this->getActiveCount(),
+            'todoItems' => $this->getTodoItems(),
+            'minutesAgo' => 0,
         ]);
     }
 
@@ -37,17 +36,44 @@ class TodosController extends Controller
                     break;
                 }
 
-                $newTodoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
+                $newTodoItems = $this->getTodoItems();
                 if (json_encode($newTodoItems) !== json_encode($todoItems)) {
                     $todoItems = $newTodoItems;
-                    $activeCount = $this->stardustHelper->getEntity(config('stardust.active_count_id'));
 
-                    sse()->patchElements(view('index', ['activeCount' => $activeCount, 'todoItems' => $todoItems])->render());
+                    sse()->patchElements(view('index', [
+                        'activeCount' => $this->getActiveCount(),
+                        'todoItems' => $this->getTodoItems(),
+                        'minutesAgo' => 0,
+                    ])->render());
                 }
 
                 // Sleep for 100ms
                 usleep(1000 * 100);
             }
+        });
+    }
+
+    public function timeTravel(?int $minutesAgo = null): StreamedResponse
+    {
+        $signals = datastar()->readSignals();
+        $minutesAgo = $minutesAgo ?? $signals['minutesAgo'] ?? 0;
+
+        $body = [];
+        if ($minutesAgo > 0) {
+            $datetime = $this->stardustHelper->formatDateTime(now()->subMinutes($minutesAgo));
+            $body = ['bind' => ['with' => ['db' => ['asOf' => "{#utc $datetime}"]]]];
+        }
+
+        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'), [], $body)->results;
+
+        $html = view('index', [
+                'activeCount' => $this->getActiveCount(),
+                'todoItems' => $todoItems,
+                'minutesAgo' => $minutesAgo,
+            ])->render();
+
+        return sse()->getEventStream(function () use ($html) {
+            sse()->patchElements($html);
         });
     }
 
@@ -71,7 +97,7 @@ class TodosController extends Controller
         });
     }
 
-    public function updateStatus(int $id, string $status): StreamedResponse
+    public function updateStatus(int $id, string $status): Response
     {
         $response = $this->stardustHelper->transact([
             $id => [
@@ -82,7 +108,7 @@ class TodosController extends Controller
         if (!$response->successful()) {
             dd($response->getReasonPhrase());
         }
-        return sse()->getEventStream();
+        return response()->noContent();
     }
 
     public function updateTitle(int $id): StreamedResponse
@@ -101,10 +127,12 @@ class TodosController extends Controller
             }
         }
 
-        return sse()->getEventStream();
+        return sse()->getEventStream(function() {
+            sse()->patchSignals(['editing' => 0]);
+        });
     }
 
-    public function delete(int $id): StreamedResponse
+    public function delete(int $id): Response
     {
         $response = $this->stardustHelper->transact([
             $id => [
@@ -115,27 +143,38 @@ class TodosController extends Controller
         if (!$response->successful()) {
             dd($response->getReasonPhrase());
         }
-        return sse()->getEventStream();
+
+        return response()->noContent();
     }
 
-    public function activateAll(): StreamedResponse
+    public function activateAll(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.activate_all_mutation_id'), []);
+        $this->stardustHelper->runMutation(config('stardust.activate_all_mutation_id'));
 
-        return sse()->getEventStream();
+        return response()->noContent();
     }
 
-    public function completeAll(): StreamedResponse
+    public function completeAll(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.complete_all_mutation_id'), []);
+        $this->stardustHelper->runMutation(config('stardust.complete_all_mutation_id'));
 
-        return sse()->getEventStream();
+        return response()->noContent();
     }
 
-    public function clearCompleted(): StreamedResponse
+    public function clearCompleted(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.clear_completed_mutation_id'), []);
+        $this->stardustHelper->runMutation(config('stardust.clear_completed_mutation_id'));
 
-        return sse()->getEventStream();
+        return response()->noContent();
+    }
+
+    private function getActiveCount(): int
+    {
+        return $this->stardustHelper->getEntityById(config('stardust.active_count_entity_id'))->count;
+    }
+
+    private function getTodoItems(): array
+    {
+        return $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
     }
 }

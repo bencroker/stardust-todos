@@ -22,9 +22,9 @@ readonly class StardustHelper
     }
 
     /**
-     * Returns an entity.
+     * Returns an entity by its ID.
      */
-    public function getEntity(int $id, array $options = [], $associative = false): StdClass|array
+    public function getEntityById(int $id, array $options = [], $associative = false): StdClass|array
     {
         $options = array_merge(
             ['query' => ['mode' => 'object', 'max' => 1]],
@@ -64,7 +64,7 @@ readonly class StardustHelper
     /**
      * Run a query and return the result.
      */
-    public function runQuery(int $id, array $options = [], $associative = false): StdClass|array
+    public function runQuery(int $id, array $options = [], array $body = [], $associative = false): StdClass|array
     {
         $options = array_merge(
             ['query' => ['mode' => 'object']],
@@ -74,6 +74,7 @@ readonly class StardustHelper
         $result = $this->getRequest()
             ->withHeader('Accept', 'application/json')
             ->withOptions($options)
+            ->withBody(json_encode($body))
             ->post("$this->baseUrl/queries/$id/run");
 
         return json_decode($result->getBody(), $associative);
@@ -204,7 +205,7 @@ readonly class StardustHelper
     /**
      * Returns a PendingRequest with the appropriate content type based on the data type.
      */
-    private function getRequest(string|array|null $data = null): PendingRequest
+    public function getRequest(string|array|null $data = null): PendingRequest
     {
         $contentType = 'application/ron';
         if (is_array($data)) {

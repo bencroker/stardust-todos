@@ -25,7 +25,7 @@ class Setup extends Command
      */
     public function handle(): void
     {
-            $activeCountId = config('stardust.active_count_id');
+        $activeCountId = config('stardust.active_count_entity_id');
 
         $response = $this->stardustHelper->transact("
             $activeCountId { title activeCount count 0 }
@@ -92,6 +92,7 @@ class Setup extends Command
                 where [
                     [?id title ?title]
                     [?id status ?status]
+                    [!= ?status deleted]
                     [?id createdAt ?createdAt]
                 ]
                 orderBy [[?createdAt asc]] 

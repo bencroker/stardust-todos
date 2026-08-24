@@ -1,0 +1,42 @@
+h1 {
+	display: flex;
+	justify-content: center;
+	gap: 16px;
+
+	a, button {
+		color: #999;
+		font-size: initial;
+		text-decoration: none;
+
+		&:focus {
+			box-shadow: none;
+		}
+
+		&:hover {
+			color: inherit;
+			cursor: pointer;
+		}
+	}
+
+	button {
+		font-size: initial;
+
+		&.active {
+			color: inherit;
+		}
+	}
+}
+
+.timeTravel {
+	display: flex;
+	justify-content: center;
+
+	select {
+		position: absolute;
+  		top: -28px;
+
+		&:focus {
+			box-shadow: none;
+		}
+	}
+}
