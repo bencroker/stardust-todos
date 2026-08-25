@@ -169,7 +169,14 @@ class TodosController extends Controller
 
     private function getActiveCount(): int
     {
-        return $this->stardust->getEntityById(config('stardust.active_count_entity_id'))->fields[0]->value ?? 0;
+        $entity = $this->stardust->getEntityById(config('stardust.active_count_entity_id'));
+        foreach ($entity->fields as $field) {
+            if ($field->field === 'count') {
+                return $field->value;
+            }
+        }
+
+        return 0;
     }
 
     private function getTodoItems(): array
