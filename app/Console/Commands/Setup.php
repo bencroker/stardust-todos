@@ -20,6 +20,7 @@ class Setup extends Command
             $this->stardustHelper = new StardustHelper;
 
             $this->createActiveCountEntity();
+            $this->createActiveCountQuery();
             $this->createActiveCountMutation();
             $this->createActiveCountReactor();
             $this->createTodoItemsQuery();
@@ -49,6 +50,27 @@ class Setup extends Command
         $this->info('Active count entity created.');
     }
 
+    private function createActiveCountQuery(): void
+    {
+        $entity = config('stardust.active_count_query_id');
+
+        $this->stardustHelper->createQuery(
+            data: [
+                'find' => [
+                    ['count', '?id', '?activeCount'],
+                ],
+                'where' => [
+                    ['?id', 'completable', 'true'],
+                    ['?id', 'status', 'active'],
+                ],
+            ],
+            entity: $entity,
+            title: 'activeCountQuery',
+        );
+
+        $this->info('Active count query created.');
+    }
+
     private function createActiveCountMutation(): void
     {
         $entity = config('stardust.active_count_mutation_id');
@@ -59,15 +81,16 @@ class Setup extends Command
             data: [
                 'query' => [
                     'find' => [
-                        '?id',
+                        ['count', '?id', '?activeCount'],
                     ],
                     'where' => [
+                        ['?id', 'completable', 'true'],
                         ['?id', 'status', 'active'],
                     ],
                 ],
                 'patch' => [
                     $activeCountID => [
-                        'count' => 1,
+                        'count' => '?activeCount',
                     ],
                 ],
             ],
@@ -107,6 +130,7 @@ class Setup extends Command
                     '?createdAt',
                 ],
                 'where' => [
+                    ['?id', 'completable', 'true'],
                     ['?id', 'title', '?title'],
                     ['?id', 'status', '?status'],
                     ['!=', '?status', 'deleted'],
@@ -186,6 +210,7 @@ class Setup extends Command
                         '?id',
                     ],
                     'where' => [
+                        ['?id', 'completable', 'true'],
                         ['?id', 'status', $currentStatus],
                     ],
                 ],

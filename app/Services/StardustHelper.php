@@ -4,7 +4,6 @@ namespace App\Services;
 
 use Carbon\CarbonInterface;
 use Generator;
-use Illuminate\Support\Facades\Http;
 use InvalidArgumentException;
 use Mcp\Client;
 use Mcp\Client\Transport\HttpTransport;
@@ -18,13 +17,12 @@ use UnexpectedValueException;
 final class StardustHelper
 {
     private Client $client;
+    private McpHelper $mcp;
 
-    private string $endpoint;
-
-    public function __construct(?string $baseUrl = null)
+    public function __construct(string $baseUrl = 'http://127.0.0.1:1980')
     {
-        $baseUrl ??= config('stardust.base_url');
-        $this->endpoint = rtrim($baseUrl, '/').'/mcp';
+        $endpoint = rtrim($baseUrl, '/').'/mcp';
+        $this->mcp = new McpHelper($endpoint);
 
         $this->client = Client::builder()
             ->setClientInfo('Laravel Stardust Client', '1.0.0')
@@ -33,7 +31,7 @@ final class StardustHelper
             ->setRequestTimeout(120)
             ->build();
 
-        $this->client->connect(new HttpTransport(endpoint: $this->endpoint));
+        $this->client->connect(new HttpTransport(endpoint: $endpoint));
     }
 
     public function __destruct()
@@ -48,7 +46,6 @@ final class StardustHelper
      */
     public function getEntityById(
         int $entity,
-        array $options = [],
         bool $associative = false,
     ): stdClass|array {
         $result = $this->client->readResource("stardust://entities/{$entity}");
@@ -138,80 +135,13 @@ final class StardustHelper
         bool $associative = false,
     ): Generator {
         $uri = $this->queryStreamUri($entity, $options);
-        $requestId = 1;
-        $payload = [
-            'jsonrpc' => '2.0',
-            'id' => $requestId,
-            'method' => 'subscriptions/listen',
-            'params' => [
-                'notifications' => [
-                    'resourceSubscriptions' => [$uri],
-                ],
-                '_meta' => [
-                    'io.modelcontextprotocol/protocolVersion' => ProtocolVersion::V2026_07_28->value,
-                    'io.modelcontextprotocol/clientCapabilities' => new stdClass,
-                    'io.modelcontextprotocol/clientInfo' => [
-                        'name' => 'Laravel Stardust Client',
-                        'version' => '1.0.0',
-                    ],
-                ],
-            ],
-        ];
-
-        $response = Http::withHeaders([
-            'Accept' => 'application/json, text/event-stream',
-            'MCP-Protocol-Version' => ProtocolVersion::V2026_07_28->value,
-            'Mcp-Method' => 'subscriptions/listen',
-        ])
-            ->withBody(json_encode($payload, JSON_THROW_ON_ERROR), 'application/json')
-            ->withOptions([
-                'stream' => true,
-                'timeout' => 0,
-                'connect_timeout' => 30,
-            ])
-            ->post($this->endpoint);
-
-        $response->throw();
-
-        $acknowledged = false;
-        foreach ((new SseHelper)->data($response->toPsrResponse()) as $data) {
-            $message = $this->decodeJsonRpcMessage($data);
-
-            if (isset($message['error'])) {
-                $error = is_array($message['error']) ? $message['error'] : [];
-
-                throw new RuntimeException(
-                    is_string($error['message'] ?? null)
-                        ? $error['message']
-                        : 'The Stardust query stream request failed.',
-                );
-            }
-
+        foreach ($this->mcp->subscribe($uri) as $message) {
             $method = $message['method'] ?? null;
             $params = is_array($message['params'] ?? null)
                 ? $message['params']
                 : [];
 
-            if ($method === 'notifications/subscriptions/acknowledged') {
-                $subscriptions = $params['notifications']['resourceSubscriptions'] ?? null;
-                if (! is_array($subscriptions) || ! in_array($uri, $subscriptions, true)) {
-                    throw new RuntimeException(
-                        "Stardust did not accept query stream {$uri}.",
-                    );
-                }
-
-                $acknowledged = true;
-
-                continue;
-            }
-
             if ($method === 'notifications/stardust/stream') {
-                if (! $acknowledged) {
-                    throw new UnexpectedValueException(
-                        'Stardust sent a query replacement before acknowledging the stream.',
-                    );
-                }
-
                 if (($params['uri'] ?? null) !== $uri || ($params['type'] ?? null) !== 'query') {
                     continue;
                 }
@@ -234,15 +164,7 @@ final class StardustHelper
 
                 continue;
             }
-
-            if (array_key_exists('id', $message) && $message['id'] === $requestId) {
-                return;
-            }
         }
-
-        throw new RuntimeException(
-            'The Stardust query stream closed without a terminal response.',
-        );
     }
 
     /**
@@ -293,8 +215,8 @@ final class StardustHelper
      */
     public function createReactor(
         int $mutation,
-        ?int $revision = null,
         string $title = '',
+        ?int $revision = null,
         ?int $entity = null,
         ?array $bindings = null,
     ): array {
@@ -431,27 +353,6 @@ final class StardustHelper
         }
 
         return $uri;
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function decodeJsonRpcMessage(string $data): array
-    {
-        $message = json_decode(
-            $data,
-            true,
-            512,
-            JSON_THROW_ON_ERROR,
-        );
-
-        if (! is_array($message)) {
-            throw new UnexpectedValueException(
-                'The Stardust query stream sent an invalid JSON-RPC message.',
-            );
-        }
-
-        return $message;
     }
 
     private function bindings(array $bindings): stdClass

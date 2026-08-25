@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Services\McpHelper;
 use App\Services\StardustHelper;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -93,9 +94,9 @@ final class StreamingTest extends TestCase
         $client = $this->createMock(Client::class);
         $client->method('isConnected')->willReturn(false);
         $reflection->getProperty('client')->setValue($helper, $client);
-        $reflection->getProperty('endpoint')->setValue(
+        $reflection->getProperty('mcp')->setValue(
             $helper,
-            'http://stardust.test/mcp',
+            new McpHelper('http://stardust.test/mcp'),
         );
 
         return $helper;

@@ -10,7 +10,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TodosController extends Controller
 {
-    private ?StardustHelper $stardustHelper = null;
+    private readonly StardustHelper $stardust;
+
+    public function __construct()
+    {
+        $this->stardust = new StardustHelper(config('stardust.base_url'));
+    }
 
     public function index(): View
     {
@@ -55,7 +60,7 @@ class TodosController extends Controller
 
         $bindings = [];
         if ($minutesAgo > 0) {
-            $datetime = $this->stardust()->formatDateTime(now()->subMinutes($minutesAgo));
+            $datetime = $this->stardust->formatDateTime(now()->subMinutes($minutesAgo));
             $bindings = [
                 'with' => [
                     'db' => [
@@ -65,7 +70,7 @@ class TodosController extends Controller
             ];
         }
 
-        $todoItems = $this->stardust()->runQuery(
+        $todoItems = $this->stardust->runQuery(
             config('stardust.todo_items_query_id'),
             body: $bindings,
         )->results;
@@ -86,9 +91,10 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['newTitle'] ?? null;
         if ($title) {
-            $datetime = $this->stardust()->formatDateTime(now());
-            $this->stardust()->transact([
+            $datetime = $this->stardust->formatDateTime(now());
+            $this->stardust->transact([
                 '#_entity' => [
+                    'completable' => 'true',
                     'title' => $title,
                     'status' => 'active',
                     'createdAt' => ['#utc' => $datetime],
@@ -103,7 +109,7 @@ class TodosController extends Controller
 
     public function updateStatus(int $id, string $status): Response
     {
-        $this->stardust()->transact([
+        $this->stardust->transact([
             $id => [
                 'status' => $status,
             ],
@@ -117,7 +123,7 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['title'] ?? null;
         if ($title) {
-            $this->stardust()->transact([
+            $this->stardust->transact([
                 $id => [
                     'title' => $title,
                 ],
@@ -131,7 +137,7 @@ class TodosController extends Controller
 
     public function delete(int $id): Response
     {
-        $this->stardust()->transact([
+        $this->stardust->transact([
             $id => [
                 'status' => 'deleted',
             ],
@@ -142,37 +148,33 @@ class TodosController extends Controller
 
     public function activateAll(): Response
     {
-        $this->stardust()->runMutation(config('stardust.activate_all_mutation_id'));
+        $this->stardust->runMutation(config('stardust.activate_all_mutation_id'));
 
         return response()->noContent();
     }
 
     public function completeAll(): Response
     {
-        $this->stardust()->runMutation(config('stardust.complete_all_mutation_id'));
+        $this->stardust->runMutation(config('stardust.complete_all_mutation_id'));
 
         return response()->noContent();
     }
 
     public function clearCompleted(): Response
     {
-        $this->stardust()->runMutation(config('stardust.clear_completed_mutation_id'));
+        $this->stardust->runMutation(config('stardust.clear_completed_mutation_id'));
 
         return response()->noContent();
     }
 
     private function getActiveCount(): int
     {
-        return $this->stardust()->getEntityById(config('stardust.active_count_entity_id'))->fields[0]->value ?? 0;
+//        dd($this->stardust->getEntityById(config('stardust.active_count_entity_id'))->fields[0]);
+        return $this->stardust->getEntityById(config('stardust.active_count_entity_id'))->fields[0]->value ?? 0;
     }
 
     private function getTodoItems(): array
     {
-        return $this->stardust()->runQuery(config('stardust.todo_items_query_id'))->results;
-    }
-
-    private function stardust(): StardustHelper
-    {
-        return $this->stardustHelper ??= new StardustHelper;
+        return $this->stardust->runQuery(config('stardust.todo_items_query_id'))->results;
     }
 }
