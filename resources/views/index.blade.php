@@ -76,40 +76,44 @@
                         type="checkbox"
                     />
                     @if ($activeCount > 0)
-                        <label for="toggle-all">Mark all as complete</label>
+                        <label data-on:click="{{ datastar()->action(['TodosController', 'completeAll']) }}" for="toggle-all">
+                            Mark all as complete
+                        </label>
                     @else
-                        <label for="toggle-all">Mark all as active</label>
+                        <label data-on:click="{{ datastar()->action(['TodosController', 'activateAll']) }}" for="toggle-all">
+                            Mark all as active
+                        </label>
                     @endif
                 </div>
                 <ul class="todo-list">
                     @foreach($todoItems as $item)
                         <li
                             data-show="$filter === 'all' || $filter === '{{ $item->status }}'"
-                            data-class:editing="$editing == {{ $item->id }}"
-                            id="todo-{{ $item->id }}"
+                            data-class:editing="$editing == {{ $item->id->{'#'} }}"
+                            id="todo-{{ $item->id->{'#'} }}"
                             class="@if ($item->status === 'complete') completed @endif"
                         >
                             <div class="view">
                                 <input
-                                    data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'updateStatus'], ['id' => $item->id, 'status' => $item->status === 'active' ? 'complete' : 'active']) }}"
+                                    data-on:click="evt.preventDefault(); {{ datastar()->action(['TodosController', 'updateStatus'], ['id' => $item->id->{'#'}, 'status' => $item->status === 'active' ? 'complete' : 'active']) }}"
                                     @if ($item->status === 'complete') checked @endif
                                     class="toggle"
                                     type="checkbox"
                                 >
-                                <label data-on:dblclick="$editing = {{ $item->id }}; document.getElementById('edit-{{ $item->id }}').focus()">
+                                <label data-on:dblclick="$editing = {{ $item->id->{'#'} }}; document.getElementById('edit-{{ $item->id->{'#'} }}').focus()">
                                     {{ $item->title }}
                                 </label>
                                 <button
-                                    data-on:click="{{ datastar()->action(['TodosController', 'delete'], ['id' => $item->id]) }}"
+                                    data-on:click="{{ datastar()->action(['TodosController', 'delete'], ['id' => $item->id->{'#'}]) }}"
                                     class="destroy"
                                     title="Delete"
                                 ></button>
                             </div>
                             <input
-                                data-on:click__outside="if ($editing == {{ $item->id }}) { $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id]) }} }"
-                                data-on:keydown="if (evt.key === 'Enter') { $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id]) }} }"
+                                data-on:click__outside="if ($editing == {{ $item->id->{'#'} }}) { $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id->{'#'}]) }} }"
+                                data-on:keydown="if (evt.key === 'Enter') { $title = el.value; {{ datastar()->action(['TodosController', 'updateTitle'], ['id' => $item->id->{'#'}]) }} }"
                                 value="{{ $item->title }}"
-                                id="edit-{{ $item->id }}"
+                                id="edit-{{ $item->id->{'#'} }}"
                                 class="edit"
                             >
                         </li>

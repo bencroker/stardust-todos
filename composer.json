@@ -10,6 +10,7 @@
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
         "mbolli/php-ron": "^0.4.1",
+        "mcp/sdk": "dev-main",
         "putyourlightson/laravel-datastar": "^1.0.0"
     },
     "require-dev": {

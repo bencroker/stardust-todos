@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'base_url' => env('STARDUST_BASE_URL', 'http://localhost:1980'),
+    'base_url' => env('STARDUST_BASE_URL', 'http://127.0.0.1:1980'),
     'active_count_entity_id' => 1,
     'active_count_query_id' => 2,
     'todo_items_query_id' => 3,

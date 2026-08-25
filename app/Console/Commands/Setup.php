@@ -6,162 +6,197 @@ use App\Services\StardustHelper;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Throwable;
 
 #[Signature('app:setup')]
-#[Description('Sets up queries, mutations, and reactors.')]
+#[Description('Creates queries, mutations, and reactors.')]
 class Setup extends Command
 {
-    private readonly StardustHelper $stardustHelper;
+    private StardustHelper $stardustHelper;
 
-    public function __construct()
+    public function handle(): int
     {
-        parent::__construct();
+        try {
+            $this->stardustHelper = new StardustHelper;
 
-        $this->stardustHelper = new StardustHelper(config('stardust.base_url'));
+            $this->createActiveCountEntity();
+            $this->createActiveCountMutation();
+            $this->createActiveCountReactor();
+            $this->createTodoItemsQuery();
+            $this->createActivateAllMutation();
+            $this->createCompleteAllMutation();
+            $this->createClearCompletedMutation();
+
+            return self::SUCCESS;
+        } catch (Throwable $error) {
+            $this->error($error->getMessage());
+
+            return self::FAILURE;
+        }
     }
 
-    /**
-     * Execute the console command.
-     */
-    public function handle(): void
+    private function createActiveCountEntity(): void
     {
-        $activeCountId = config('stardust.active_count_entity_id');
+        $activeCountID = config('stardust.active_count_entity_id');
 
-        $response = $this->stardustHelper->transact("
-            $activeCountId { title activeCount count 0 }
-        ");
-        if ($response->successful()) {
-            $this->info('Active count setup successful!');
-        } else {
-            $this->error('Active count setup failed! ' . $response->getReasonPhrase());
-        }
+        $this->stardustHelper->transact([
+            $activeCountID => [
+                'title' => 'activeCount',
+                'count' => 0,
+            ],
+        ]);
 
-        $response = $this->stardustHelper->createQuery("
-            title activeCountQuery
-            query {
-                find [?active]
-                where [
-                    [$activeCountId count ?active]
-                ]
-            }
-        ", config('stardust.active_count_query_id'));
-        if ($response->successful()) {
-            $this->info('Active count query setup successful!');
-        } else {
-            $this->error('Active count query setup failed! ' . $response->getReasonPhrase());
-        }
+        $this->info('Active count entity created.');
+    }
 
-        $response = $this->stardustHelper->createMutation("
-            title activeCountMutation
-            query {
-                find [[count ?id]]
-                where [
-                  [?id status active]
-                ]
-            }
-            patch {
-                $activeCountId {
-                   count ?id
-                }
-            }
-        ", config('stardust.active_count_mutation_id'));
-        if ($response->successful()) {
-            $this->info('Active count mutation setup successful!');
-        } else {
-            $this->error('Active count mutation setup failed! ' . $response->getReasonPhrase());
-        }
+    private function createActiveCountMutation(): void
+    {
+        $entity = config('stardust.active_count_mutation_id');
 
-        $response = $this->stardustHelper->createReactor(config('stardust.active_count_mutation_id'), 1, 'activeCountReactor', config('stardust.active_count_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Active count reactor setup successful!');
-        } else {
-            $this->error('Active count reactor setup failed! ' . $response->getReasonPhrase());
-        }
+        $activeCountID = config('stardust.active_count_entity_id');
 
-        $response = $this->stardustHelper->startReactor(config('stardust.active_count_reactor_id'));
-        if ($response->successful()) {
-            $this->info('Active count reactor started successfully!');
-        } else {
-            $this->error('Active count reactor start failed! ' . $response->getReasonPhrase());
-        }
+        $this->stardustHelper->createMutation(
+            data: [
+                'query' => [
+                    'find' => [
+                        '?id',
+                    ],
+                    'where' => [
+                        ['?id', 'status', 'active'],
+                    ],
+                ],
+                'patch' => [
+                    $activeCountID => [
+                        'count' => 1,
+                    ],
+                ],
+            ],
+            entity: $entity,
+            title: 'activeCountMutation',
+        );
 
-        $response = $this->stardustHelper->createQuery("
-            title todoItemsQuery
-            query {
-                find [?id ?title ?status ?createdAt]
-                where [
-                    [?id title ?title]
-                    [?id status ?status]
-                    [!= ?status deleted]
-                    [?id createdAt ?createdAt]
-                ]
-                orderBy [[?createdAt asc]] 
-            }
-        ", config('stardust.todo_items_query_id'));
-        if ($response->successful()) {
-            $this->info('Todo items query setup successful!');
-        } else {
-            $this->error('Todo items query setup failed! ' . $response->getReasonPhrase());
-        }
+        $this->info('Active count mutation created.');
+    }
 
-        $response = $this->stardustHelper->createMutation("
-            title activateAllMutation
-            query {
-                find [?id]
-                where [
-                  [?id status complete]
-                ]
-            }
-            patch {
-                ?id {
-                    status active
-                }
-            }
-        ", config('stardust.activate_all_mutation_id'));
-        if ($response->successful()) {
-            $this->info('Activate all mutation setup successful!');
-        } else {
-            $this->error('Activate all mutation setup failed! ' . $response->getReasonPhrase());
-        }
+    private function createActiveCountReactor(): void
+    {
+        $reactor = config('stardust.active_count_reactor_id');
 
-        $response = $this->stardustHelper->createMutation("
-            title completeAllMutation
-            query {
-                find [?id]
-                where [
-                  [?id status active]
-                ]
-            }
-            patch {
-                ?id {
-                    status complete
-                }
-            }
-        ", config('stardust.complete_all_mutation_id'));
-        if ($response->successful()) {
-            $this->info('Complete all mutation setup successful!');
-        } else {
-            $this->error('Complete all mutation setup failed! ' . $response->getReasonPhrase());
-        }
+        $mutation = config('stardust.active_count_mutation_id');
 
-        $response = $this->stardustHelper->createMutation("
-            title clearCompletedMutation
-            query {
-                find [?id]
-                where [
-                  [?id status complete]
-                ]
-            }
-            patch {
-                ?id {
-                    status deleted
-                }
-            }
-        ", config('stardust.clear_completed_mutation_id'));
-        if ($response->successful()) {
-            $this->info('Clear completed mutation setup successful!');
-        } else {
-            $this->error('Clear completed mutation setup failed! ' . $response->getReasonPhrase());
-        }
+        $this->stardustHelper->createReactor(
+            mutation: $mutation,
+            title: 'activeCountReactor',
+            entity: $reactor,
+        );
+        $this->stardustHelper->startReactor($reactor);
+
+        $this->info('Active count reactor started.');
+    }
+
+    private function createTodoItemsQuery(): void
+    {
+        $entity = config('stardust.todo_items_query_id');
+
+        $this->stardustHelper->createQuery(
+            data: [
+                'find' => [
+                    '?id',
+                    '?title',
+                    '?status',
+                    '?createdAt',
+                ],
+                'where' => [
+                    ['?id', 'title', '?title'],
+                    ['?id', 'status', '?status'],
+                    ['!=', '?status', 'deleted'],
+                    ['?id', 'createdAt', '?createdAt'],
+                ],
+                'orderBy' => [
+                    ['?createdAt', 'asc'],
+                ],
+                'project' => [
+                    'root' => '?id',
+                    'fields' => [
+                        'id' => '?id',
+                        'title' => '?title',
+                        'status' => '?status',
+                    ],
+                ],
+            ],
+            entity: $entity,
+            title: 'todoItemsQuery',
+        );
+
+        $this->info('Todo items query created.');
+    }
+
+    private function createActivateAllMutation(): void
+    {
+        $entity = config('stardust.activate_all_mutation_id');
+
+        $this->storeStatusMutation(
+            entity: $entity,
+            title: 'activateAllMutation',
+            currentStatus: 'complete',
+            newStatus: 'active',
+        );
+
+        $this->info('Activate all mutation created.');
+    }
+
+    private function createCompleteAllMutation(): void
+    {
+        $entity = config('stardust.complete_all_mutation_id');
+
+        $this->storeStatusMutation(
+            entity: $entity,
+            title: 'completeAllMutation',
+            currentStatus: 'active',
+            newStatus: 'complete',
+        );
+
+        $this->info('Complete all mutation created.');
+    }
+
+    private function createClearCompletedMutation(): void
+    {
+        $entity = config('stardust.clear_completed_mutation_id');
+
+        $this->storeStatusMutation(
+            entity: $entity,
+            title: 'clearCompletedMutation',
+            currentStatus: 'complete',
+            newStatus: 'deleted',
+        );
+
+        $this->info('Clear completed mutation created.');
+    }
+
+    private function storeStatusMutation(
+        int $entity,
+        string $title,
+        string $currentStatus,
+        string $newStatus,
+    ): void {
+        $this->stardustHelper->createMutation(
+            data: [
+                'query' => [
+                    'find' => [
+                        '?id',
+                    ],
+                    'where' => [
+                        ['?id', 'status', $currentStatus],
+                    ],
+                ],
+                'patch' => [
+                    '?id' => [
+                        'status' => $newStatus,
+                    ],
+                ],
+            ],
+            entity: $entity,
+            title: $title,
+        );
     }
 }

@@ -10,12 +10,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TodosController extends Controller
 {
-    private readonly StardustHelper $stardustHelper;
-
-    public function __construct()
-    {
-        $this->stardustHelper = new StardustHelper(config('stardust.base_url'));
-    }
+    private ?StardustHelper $stardustHelper = null;
 
     public function index(): View
     {
@@ -58,19 +53,28 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $minutesAgo = $minutesAgo ?? $signals['minutesAgo'] ?? 0;
 
-        $body = [];
+        $bindings = [];
         if ($minutesAgo > 0) {
-            $datetime = $this->stardustHelper->formatDateTime(now()->subMinutes($minutesAgo));
-            $body = ['bind' => ['with' => ['db' => ['asOf' => "{#utc $datetime}"]]]];
+            $datetime = $this->stardust()->formatDateTime(now()->subMinutes($minutesAgo));
+            $bindings = [
+                'with' => [
+                    'db' => [
+                        'asOf' => ['#utc' => $datetime],
+                    ],
+                ],
+            ];
         }
 
-        $todoItems = $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'), [], $body)->results;
+        $todoItems = $this->stardust()->runQuery(
+            config('stardust.todo_items_query_id'),
+            body: $bindings,
+        )->results;
 
         $html = view('index', [
-                'activeCount' => $this->getActiveCount(),
-                'todoItems' => $todoItems,
-                'minutesAgo' => $minutesAgo,
-            ])->render();
+            'activeCount' => $this->getActiveCount(),
+            'todoItems' => $todoItems,
+            'minutesAgo' => $minutesAgo,
+        ])->render();
 
         return sse()->getEventStream(function () use ($html) {
             sse()->patchElements($html);
@@ -82,32 +86,29 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['newTitle'] ?? null;
         if ($title) {
-            $datetime = $this->stardustHelper->formatDateTime(now());
-            $this->stardustHelper->transact("
-                #_entity {
-                    title $title
-                    status active
-                    createdAt {#utc $datetime}
-                }
-            ");
+            $datetime = $this->stardust()->formatDateTime(now());
+            $this->stardust()->transact([
+                '#_entity' => [
+                    'title' => $title,
+                    'status' => 'active',
+                    'createdAt' => ['#utc' => $datetime],
+                ],
+            ]);
         }
 
-        return sse()->getEventStream(function() {
+        return sse()->getEventStream(function () {
             sse()->patchSignals(['newTitle' => '']);
         });
     }
 
     public function updateStatus(int $id, string $status): Response
     {
-        $response = $this->stardustHelper->transact([
+        $this->stardust()->transact([
             $id => [
                 'status' => $status,
             ],
         ]);
 
-        if (!$response->successful()) {
-            dd($response->getReasonPhrase());
-        }
         return response()->noContent();
     }
 
@@ -116,65 +117,62 @@ class TodosController extends Controller
         $signals = datastar()->readSignals();
         $title = $signals['title'] ?? null;
         if ($title) {
-            $response = $this->stardustHelper->transact([
+            $this->stardust()->transact([
                 $id => [
                     'title' => $title,
                 ],
             ]);
-
-            if (!$response->successful()) {
-                dd($response->getReasonPhrase());
-            }
         }
 
-        return sse()->getEventStream(function() {
+        return sse()->getEventStream(function () {
             sse()->patchSignals(['editing' => 0]);
         });
     }
 
     public function delete(int $id): Response
     {
-        $response = $this->stardustHelper->transact([
+        $this->stardust()->transact([
             $id => [
                 'status' => 'deleted',
             ],
         ]);
-
-        if (!$response->successful()) {
-            dd($response->getReasonPhrase());
-        }
 
         return response()->noContent();
     }
 
     public function activateAll(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.activate_all_mutation_id'));
+        $this->stardust()->runMutation(config('stardust.activate_all_mutation_id'));
 
         return response()->noContent();
     }
 
     public function completeAll(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.complete_all_mutation_id'));
+        $this->stardust()->runMutation(config('stardust.complete_all_mutation_id'));
 
         return response()->noContent();
     }
 
     public function clearCompleted(): Response
     {
-        $this->stardustHelper->runMutation(config('stardust.clear_completed_mutation_id'));
+        $this->stardust()->runMutation(config('stardust.clear_completed_mutation_id'));
 
         return response()->noContent();
     }
 
     private function getActiveCount(): int
     {
-        return $this->stardustHelper->getEntityById(config('stardust.active_count_entity_id'))->count;
+        return $this->stardust()->getEntityById(config('stardust.active_count_entity_id'))->fields[0]->value ?? 0;
     }
 
     private function getTodoItems(): array
     {
-        return $this->stardustHelper->runQuery(config('stardust.todo_items_query_id'))->results;
+        return $this->stardust()->runQuery(config('stardust.todo_items_query_id'))->results;
+    }
+
+    private function stardust(): StardustHelper
+    {
+        return $this->stardustHelper ??= new StardustHelper;
     }
 }
