@@ -139,14 +139,6 @@ class Setup extends Command
                 'orderBy' => [
                     ['?createdAt', 'asc'],
                 ],
-                'project' => [
-                    'root' => '?id',
-                    'fields' => [
-                        'id' => '?id',
-                        'title' => '?title',
-                        'status' => '?status',
-                    ],
-                ],
             ],
             entity: $entity,
             title: 'todoItemsQuery',

@@ -175,7 +175,7 @@
                 <a href="https://data-star.dev/" target="_blank" rel="noopener">Datastar</a> +
                 <a href="https://stardustdb.com/" target="_blank" rel="noopener">Stardust</a>
             </p>
-            <p>Based on <a href="http://todomvc.com" target="_blank" rel="noopener noreferrer">TodoMVC</a></p>
+            <p>Based on <a href="https://todomvc.com" target="_blank" rel="noopener noreferrer">TodoMVC</a></p>
         </footer>
     </body>
 </html>

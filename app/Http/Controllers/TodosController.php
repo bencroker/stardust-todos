@@ -169,7 +169,6 @@ class TodosController extends Controller
 
     private function getActiveCount(): int
     {
-//        dd($this->stardust->getEntityById(config('stardust.active_count_entity_id'))->fields[0]);
         return $this->stardust->getEntityById(config('stardust.active_count_entity_id'))->fields[0]->value ?? 0;
     }
 

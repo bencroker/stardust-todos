@@ -110,6 +110,7 @@ final class StardustHelper
         $arguments = [
             'query' => $entity,
             'bindings' => $this->bindings($body),
+            'mode' => 'object',
         ];
 
         foreach (['revision', 'explain', 'maximumCost', 'page'] as $name) {
