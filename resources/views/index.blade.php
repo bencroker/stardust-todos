@@ -10,7 +10,7 @@
         <link rel="stylesheet" href="/css/custom.css" />
     </head>
     <body
-        @if ($minutesAgo == 0)
+        @if ($secondsAgo == 0)
             data-init="{{ datastar()->action(['TodosController', 'updates'], [], ['retry' => 'always']) }}"
         @endif
     >
@@ -25,11 +25,11 @@
                     </a>
                     todos
                     <button
-                        @if ($minutesAgo)
-                            data-on:click="{{ datastar()->action(['TodosController', 'timeTravel'], ['minutesAgo' => 0]) }}"
+                        @if ($secondsAgo)
+                            data-on:click="{{ datastar()->action(['TodosController', 'timeTravel'], ['secondsAgo' => 0]) }}"
                             class="active"
                         @else
-                            data-on:click="{{ datastar()->action(['TodosController', 'timeTravel'], ['minutesAgo' => 15]) }}"
+                            data-on:click="{{ datastar()->action(['TodosController', 'timeTravel'], ['secondsAgo' => 15]) }}"
                         @endif
                         title="Time travel"
                     >
@@ -40,17 +40,17 @@
                         </svg>
                     </button>
                 </h1>
-                @if ($minutesAgo)
+                @if ($secondsAgo)
                     <div class="timeTravel">
                         <select
-                            data-bind:minutes-ago
+                            data-bind:seconds-ago
                             data-on:change="{{ datastar()->action(['TodosController', 'timeTravel']) }}"
                         >
-                            <option value="1">1 minute ago</option>
-                            <option value="15">15 minutes ago</option>
-                            <option value="60">1 hour ago</option>
-                            <option value="1440">1 day ago</option>
-                            <option value="10080">1 week ago</option>
+                            <option value="5">5 seconds ago</option>
+                            <option value="15">15 seconds ago</option>
+                            <option value="30">30 seconds ago</option>
+                            <option value="60">1 minute ago</option>
+                            <option value="300">5 minutes ago</option>
                         </select>
                     </div>
                 @endif
@@ -131,7 +131,7 @@
                 >
                     <li>
                         <a
-                            data-on:click="$filter = 'all'; el.blur()"
+                            data-on:click="$filter = 'all'; el.blur(); evt.preventDefault()"
                             data-class:selected="$filter === 'all'"
                             class="selected"
                             href="#"
@@ -141,7 +141,7 @@
                     </li>
                     <li>
                         <a
-                            data-on:click="$filter = 'active'; el.blur()"
+                            data-on:click="$filter = 'active'; el.blur(); evt.preventDefault()"
                             data-class:selected="$filter === 'active'"
                             href="#"
                         >
@@ -150,7 +150,7 @@
                     </li>
                     <li>
                         <a
-                            data-on:click="$filter = 'complete'; el.blur()"
+                            data-on:click="$filter = 'complete'; el.blur(); evt.preventDefault()"
                             data-class:selected="$filter === 'complete'"
                             href="#"
                         >
@@ -158,7 +158,7 @@
                         </a>
                     </li>
                 </ul>
-                @if ($activeCount > 0)
+                @if (count($todoItems) - $activeCount > 0)
                     <button
                         data-on:click="{{ datastar()->action(['TodosController', 'clearCompleted']) }}"
                         class="clear-completed"

@@ -22,7 +22,7 @@ class TodosController extends Controller
         return view('index', [
             'activeCount' => $this->getActiveCount(),
             'todoItems' => $this->getTodoItems(),
-            'minutesAgo' => 0,
+            'secondsAgo' => 0,
         ]);
     }
 
@@ -43,7 +43,7 @@ class TodosController extends Controller
                     sse()->patchElements(view('index', [
                         'activeCount' => $this->getActiveCount(),
                         'todoItems' => $this->getTodoItems(),
-                        'minutesAgo' => 0,
+                        'secondsAgo' => 0,
                     ])->render());
                 }
 
@@ -53,14 +53,14 @@ class TodosController extends Controller
         });
     }
 
-    public function timeTravel(?int $minutesAgo = null): StreamedResponse
+    public function timeTravel(?int $secondsAgo = null): StreamedResponse
     {
         $signals = datastar()->readSignals();
-        $minutesAgo = $minutesAgo ?? $signals['minutesAgo'] ?? 0;
+        $secondsAgo = $secondsAgo ?? $signals['secondsAgo'] ?? 0;
 
         $bindings = [];
-        if ($minutesAgo > 0) {
-            $datetime = $this->stardust->formatDateTime(now()->subMinutes($minutesAgo));
+        if ($secondsAgo > 0) {
+            $datetime = $this->stardust->formatDateTime(now()->subSeconds($secondsAgo));
             $bindings = [
                 'with' => [
                     'db' => [
@@ -78,7 +78,7 @@ class TodosController extends Controller
         $html = view('index', [
             'activeCount' => $this->getActiveCount(),
             'todoItems' => $todoItems,
-            'minutesAgo' => $minutesAgo,
+            'secondsAgo' => $secondsAgo,
         ])->render();
 
         return sse()->getEventStream(function () use ($html) {
